@@ -1,10 +1,13 @@
 import os
 import secrets
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import AnyHttpUrl, PostgresDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+PROJECT_ROOT = Path(__file__).parents[3]
+ENV_FILE = PROJECT_ROOT / ".env"
 
 class Settings(BaseSettings):
     """Application settings configuration class.
@@ -43,21 +46,22 @@ class Settings(BaseSettings):
     POSTGRES_DB: str = os.getenv("POSTGRES_DB", "kurobara")
     POSTGRES_PORT: str = os.getenv("POSTGRES_PORT", "5432")
     DATABASE_URL: Optional[PostgresDsn] = None
+    DATABASE_CONNECT_ARGS: Dict[str, Any] = {}  # Add this line
 
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
-    def assemble_db_connection(cls, v: Optional[str], values: Dict[str, Any]) -> Any:
+    def assemble_db_connection(cls, v: Optional[str], info: Any) -> Any:
         """Build PostgreSQL connection string if not explicitly provided."""
         if isinstance(v, str):
             return v
         
         return PostgresDsn.build(
             scheme="postgresql",
-            username=values.data.get("POSTGRES_USER"),
-            password=values.data.get("POSTGRES_PASSWORD"),
-            host=values.data.get("POSTGRES_SERVER"),
-            port=values.data.get("POSTGRES_PORT"),
-            path=f"{values.data.get('POSTGRES_DB') or ''}",
+            username=os.getenv("POSTGRES_USER", "postgres"),
+            password=os.getenv("POSTGRES_PASSWORD", "postgres"),
+            host=os.getenv("POSTGRES_SERVER", "localhost"),
+            port=int(os.getenv("POSTGRES_PORT", "5432")),
+            path=f"/{os.getenv('POSTGRES_DB', 'kurobara')}",
         )
 
     # Email Settings
@@ -100,7 +104,11 @@ class Settings(BaseSettings):
     DEFAULT_BLUR_NSFW: bool = os.getenv("DEFAULT_BLUR_NSFW", "True").lower() == "true"
     DEFAULT_SHOW_EXPLICIT_ON_DASHBOARD: bool = os.getenv("DEFAULT_SHOW_EXPLICIT_ON_DASHBOARD", "False").lower() == "true"
 
-    model_config = SettingsConfigDict(case_sensitive=True, env_file=".env", env_file_encoding="utf-8")
-
+    model_config = SettingsConfigDict(
+        case_sensitive=True, 
+        env_file=str(ENV_FILE),
+        env_file_encoding="utf-8",
+        extra="ignore"  # Add this line to ignore extra fields
+    )
 
 settings = Settings()
