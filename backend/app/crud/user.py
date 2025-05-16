@@ -1,4 +1,5 @@
 from typing import Any, Dict, Optional, Union, TypeVar, Generic
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 from pydantic import BaseModel

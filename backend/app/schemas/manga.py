@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Annotated
 from enum import Enum
 from pydantic import BaseModel, UUID4, Field, field_validator, model_validator
 from datetime import datetime
@@ -172,3 +172,28 @@ class MangaShareLink(BaseModel):
     id: UUID4
     url: str
     expires_at: datetime | None = None
+
+
+# Add the Chapter class definition if it's missing
+class Chapter(BaseModel):
+    id: UUID4
+    manga_id: UUID4
+    chapter_number: float
+    title: str | None = None
+    pages_count: int
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+# Add ChapterCreate class if it's missing
+class ChapterCreate(BaseModel):
+    manga_id: UUID4
+    chapter_number: float
+    title: str | None = None
+    pages_count: int
+
+
+# Add ChapterUpdate class if it's missing
+class ChapterUpdate(BaseModel):
+    title: str | None = None
+    pages_count: int | None = None
