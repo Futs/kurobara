@@ -18,11 +18,12 @@ def read_bookmarks(
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
-    Retrieve bookmarks.
+    Retrieve bookmarks for the current user.
     """
-    bookmarks = db.query(models.Bookmark).filter(
-        models.Bookmark.user_id == current_user.id
-    ).offset(skip).limit(limit).all()
+    # Use the CRUD method instead of direct query
+    bookmarks = crud.bookmark.get_multi_by_user(
+        db, user_id=current_user.id, skip=skip, limit=limit
+    )
     return bookmarks
 
 

@@ -14,6 +14,7 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         return db.query(User).filter(User.email == email).first()
 
     def get_by_oauth(self, db: Session, *, provider: str, oauth_id: str) -> Optional[User]:
+        """Get a user by OAuth provider and ID"""
         return db.query(User).filter(
             User.oauth_provider == provider,
             User.oauth_id == oauth_id
@@ -49,17 +50,18 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         return db_obj
 
     def create_oauth_user(
-        self, db: Session, *, email: str, provider: str, oauth_id: str, full_name: Optional[str] = None
+        self, db: Session, *, email: str, provider: str, oauth_id: str, full_name: str = ""
     ) -> User:
+        """Create a new user from OAuth login"""
         db_obj = User(
             email=email,
             full_name=full_name,
-            is_superuser=False,
             oauth_provider=provider,
-            oauth_id=oauth_id
+            oauth_id=oauth_id,
+            is_active=True,
+            is_superuser=False,
+            two_factor_enabled=False
         )
-        self._set_default_user_preferences(db_obj)
-        
         db.add(db_obj)
         db.commit()
         db.refresh(db_obj)
@@ -101,11 +103,31 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         db.refresh(user)
         return user
 
-    def enable_two_factor(self, db: Session, *, user_id: Any, secret: str) -> User:
-        return self._update_two_factor(db, user_id, secret, True)
+    def enable_two_factor(self, db: Session, *, user_id: UUID, secret: str) -> User:
+        """Enable 2FA for a user"""
+        user = self.get(db, id=user_id)
+        if not user:
+            raise ValueError("User not found")
+        
+        user.two_factor_secret = secret
+        user.two_factor_enabled = True
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
 
-    def disable_two_factor(self, db: Session, *, user_id: Any) -> User:
-        return self._update_two_factor(db, user_id, None, False)
+    def disable_two_factor(self, db: Session, *, user_id: UUID) -> User:
+        """Disable 2FA for a user"""
+        user = self.get(db, id=user_id)
+        if not user:
+            raise ValueError("User not found")
+        
+        user.two_factor_secret = None
+        user.two_factor_enabled = False
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
 
     def update_preferences(
         self, db: Session, *, user_id: Any, blur_nsfw: Optional[bool] = None, 

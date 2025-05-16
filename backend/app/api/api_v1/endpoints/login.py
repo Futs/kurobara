@@ -104,43 +104,140 @@ def login_google(
     """
     OAuth login with Google
     """
-    # In a real implementation, we would verify the Google OAuth code
-    # and get user information from Google
-    # For this example, we'll simulate it
-    
-    # Simulate getting user info from Google
-    email = "google_user@example.com"
-    oauth_id = "google_123456789"
-    full_name = "Google User"
-    
-    # Check if user exists
-    user = crud.user.get_by_oauth(db, provider="google", oauth_id=oauth_id)
-    
-    # If not, create a new user
-    if not user:
-        user = crud.user.create_oauth_user(
-            db, email=email, provider="google", oauth_id=oauth_id, full_name=full_name
-        )
-    
-    # Check if 2FA is enabled for this user
-    if user.two_factor_enabled:
-        access_token = security.create_access_token(
-            user.id, expires_delta=timedelta(minutes=15), two_factor_verified=False
-        )
+    try:
+        # Verify the token with Google
+        user_info = security.verify_oauth_token(oauth_in.code, "google")
+        
+        # Get the user's email and OAuth ID
+        email = user_info.get("email")
+        oauth_id = user_info.get("sub")
+        
+        if not email or not oauth_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid OAuth response: missing email or ID"
+            )
+            
+        # Check if email is verified (Google specific)
+        if not user_info.get("email_verified", False):
+            raise HTTPException(
+                status_code=400,
+                detail="Email not verified with Google"
+            )
+        
+        # Get or create user
+        user = crud.user.get_by_oauth(db, provider="google", oauth_id=oauth_id)
+        
+        if not user:
+            # Create new user
+            full_name = user_info.get("name", "")
+            user = crud.user.create_oauth_user(
+                db, 
+                email=email, 
+                provider="google", 
+                oauth_id=oauth_id, 
+                full_name=full_name
+            )
+        
+        # Check if 2FA is enabled for this user
+        if user.two_factor_enabled:
+            access_token = security.create_access_token(
+                user.id, expires_delta=timedelta(minutes=15), two_factor_verified=False
+            )
+            return {
+                "access_token": access_token,
+                "token_type": "bearer",
+                "requires_two_factor": True
+            }
+        
+        # Create full access token
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         return {
-            "access_token": access_token,
+            "access_token": security.create_access_token(
+                user.id, expires_delta=access_token_expires, two_factor_verified=True
+            ),
             "token_type": "bearer",
-            "requires_two_factor": True
+            "requires_two_factor": False
         }
-    
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    return {
-        "access_token": security.create_access_token(
-            user.id, expires_delta=access_token_expires, two_factor_verified=True
-        ),
-        "token_type": "bearer",
-        "requires_two_factor": False
-    }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"OAuth error: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Authentication error: {str(e)}"
+        )
+
+
+@router.post("/login/github", response_model=schemas.Token)
+def login_github(
+    *,
+    db: Session = Depends(deps.get_db),
+    oauth_in: schemas.OAuthLogin
+) -> Any:
+    """
+    OAuth login with GitHub
+    """
+    try:
+        # Verify the token with GitHub
+        user_info = security.verify_oauth_token(oauth_in.code, "github")
+        
+        # Get the user's email and OAuth ID
+        email = user_info.get("email")
+        oauth_id = str(user_info.get("id"))
+        
+        if not email or not oauth_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid OAuth response: missing email or ID"
+            )
+        
+        # Get or create user
+        user = crud.user.get_by_oauth(db, provider="github", oauth_id=oauth_id)
+        
+        if not user:
+            # Create new user
+            full_name = user_info.get("name", user_info.get("login", ""))
+            user = crud.user.create_oauth_user(
+                db, 
+                email=email, 
+                provider="github", 
+                oauth_id=oauth_id, 
+                full_name=full_name
+            )
+        
+        # Check if 2FA is enabled for this user
+        if user.two_factor_enabled:
+            access_token = security.create_access_token(
+                user.id, expires_delta=timedelta(minutes=15), two_factor_verified=False
+            )
+            return {
+                "access_token": access_token,
+                "token_type": "bearer",
+                "requires_two_factor": True
+            }
+        
+        # Create full access token
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        return {
+            "access_token": security.create_access_token(
+                user.id, expires_delta=access_token_expires, two_factor_verified=True
+            ),
+            "token_type": "bearer",
+            "requires_two_factor": False
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"OAuth error: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Authentication error: {str(e)}"
+        )
 
 
 @router.post("/password-recovery/{email}", response_model=schemas.Msg)

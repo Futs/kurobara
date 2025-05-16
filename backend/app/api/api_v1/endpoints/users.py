@@ -32,16 +32,26 @@ def create_user(
     *,
     db: Session = Depends(deps.get_db),
     user_in: schemas.UserCreate,
+    current_user: models.User = Depends(deps.get_current_active_superuser),
 ) -> Any:
     """
     Create new user.
     """
+    # Check if user with this email already exists
     user = crud.user.get_by_email(db, email=user_in.email)
     if user:
         raise HTTPException(
             status_code=400,
-            detail="The user with this email already exists in the system.",
+            detail="A user with this email already exists in the system.",
         )
+    
+    # Additional validation beyond schema validation
+    if user_in.is_superuser and not current_user.is_superuser:
+        raise HTTPException(
+            status_code=403,
+            detail="Only superusers can create other superusers",
+        )
+    
     user = crud.user.create(db, obj_in=user_in)
     return user
 
@@ -53,19 +63,28 @@ def update_user_me(
     password: str = Body(None),
     full_name: str = Body(None),
     email: EmailStr = Body(None),
+    user_in: schemas.UserUpdate,
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
     Update own user.
     """
-    current_user_data = jsonable_encoder(current_user)
-    user_in = schemas.UserUpdate(**current_user_data)
-    if password is not None:
-        user_in.password = password
-    if full_name is not None:
-        user_in.full_name = full_name
-    if email is not None:
-        user_in.email = email
+    # Prevent changing email to one that already exists
+    if user_in.email and user_in.email != current_user.email:
+        user_with_email = crud.user.get_by_email(db, email=user_in.email)
+        if user_with_email:
+            raise HTTPException(
+                status_code=400,
+                detail="A user with this email already exists in the system.",
+            )
+    
+    # Prevent OAuth users from changing their password
+    if user_in.password and current_user.oauth_provider != "email":
+        raise HTTPException(
+            status_code=400,
+            detail="OAuth users cannot change their password",
+        )
+    
     user = crud.user.update(db, db_obj=current_user, obj_in=user_in)
     return user
 

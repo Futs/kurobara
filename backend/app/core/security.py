@@ -1,12 +1,10 @@
+import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Any, Union, Optional
+from typing import Any, Dict, Optional, Union
 
-from jose import jwt
-from passlib.context import CryptContext
+import jwt
 import pyotp
-import qrcode
-import io
-import base64
+from passlib.context import CryptContext
 
 from app.core.config import settings
 
@@ -16,7 +14,6 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def create_access_token(
     subject: Union[str, Any], expires_delta: Optional[timedelta] = None, two_factor_verified: bool = False
 ) -> str:
-    # Use the imported timezone directly instead of reimporting
     expire = datetime.now(timezone.utc) + (
         expires_delta if expires_delta else timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
@@ -25,9 +22,66 @@ def create_access_token(
         "exp": expire, 
         "sub": str(subject), 
         "two_factor_verified": two_factor_verified,
-        "iat": datetime.now(timezone.utc)  # Add issued-at time for better security
+        "iat": datetime.now(timezone.utc)
     }
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
+
+
+def verify_oauth_token(token: str, provider: str) -> Dict[str, Any]:
+    """
+    Verify an OAuth token with the appropriate provider
+    """
+    if provider == "google":
+        return verify_google_token(token)
+    elif provider == "github":
+        return verify_github_token(token)
+    else:
+        raise ValueError(f"Unsupported OAuth provider: {provider}")
+
+
+def verify_google_token(token: str) -> Dict[str, Any]:
+    """
+    Verify a Google OAuth token and return user information
+    In a production environment, this would make a request to Google's tokeninfo endpoint
+    """
+    # This is a placeholder - in production, use Google's API client library
+    # from google.oauth2 import id_token
+    # from google.auth.transport import requests
+    # try:
+    #     idinfo = id_token.verify_oauth2_token(token, requests.Request(), settings.GOOGLE_CLIENT_ID)
+    #     return idinfo
+    # except ValueError:
+    #     raise HTTPException(status_code=401, detail="Invalid Google token")
+    
+    # For development/testing, return mock data
+    return {
+        "sub": "google_123456789",
+        "email": "user@example.com",
+        "name": "Test User",
+        "email_verified": True
+    }
+
+
+def verify_github_token(token: str) -> Dict[str, Any]:
+    """
+    Verify a GitHub OAuth token and return user information
+    In a production environment, this would make a request to GitHub's API
+    """
+    # This is a placeholder - in production, use GitHub's API
+    # import requests
+    # headers = {"Authorization": f"token {token}"}
+    # response = requests.get("https://api.github.com/user", headers=headers)
+    # if response.status_code != 200:
+    #     raise HTTPException(status_code=401, detail="Invalid GitHub token")
+    # return response.json()
+    
+    # For development/testing, return mock data
+    return {
+        "id": "github_123456789",
+        "email": "user@example.com",
+        "name": "Test User",
+        "login": "testuser"
+    }
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -44,16 +98,16 @@ def generate_totp_secret() -> str:
 
 
 def get_totp_uri(secret: str, email: str) -> str:
-    """Get the TOTP URI for QR code generation"""
+    """Generate a TOTP URI for QR code generation"""
     return pyotp.totp.TOTP(secret).provisioning_uri(
         name=email, issuer_name=settings.PROJECT_NAME
     )
 
 
 def verify_totp(secret: str, code: str) -> bool:
-    """Verify a TOTP code against a secret using time-safe comparison"""
+    """Verify a TOTP code against a secret"""
     totp = pyotp.TOTP(secret)
-    return totp.verify(code, valid_window=1)
+    return totp.verify(code)
 
 
 def generate_qr_code(totp_uri: str) -> str:
