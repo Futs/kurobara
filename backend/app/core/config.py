@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     RATE_LIMITING_ENABLED: bool = os.getenv("RATE_LIMITING_ENABLED", "False").lower() == "true"
 
+    # Frontend URLs (added to fix validation errors)
+    REACT_APP_API_URL: Optional[str] = None
+    NEXT_PUBLIC_API_URL: Optional[str] = None
+
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
     def parse_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
@@ -106,7 +110,12 @@ class Settings(BaseSettings):
     DEFAULT_BLUR_NSFW: bool = os.getenv("DEFAULT_BLUR_NSFW", "True").lower() == "true"
     DEFAULT_SHOW_EXPLICIT_ON_DASHBOARD: bool = os.getenv("DEFAULT_SHOW_EXPLICIT_ON_DASHBOARD", "False").lower() == "true"
 
-    model_config = SettingsConfigDict(case_sensitive=True, env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        case_sensitive=True, 
+        env_file=".env", 
+        env_file_encoding="utf-8",
+        extra="ignore"  # Changed from 'forbid' to 'ignore' to allow extra fields
+    )
 
 
 settings = Settings()
