@@ -5,26 +5,32 @@ from sqlalchemy.orm import Session
 
 from app import crud, models, schemas
 from app.api import deps
+from app.schemas.common import PaginationParams, PaginatedResponse
 
 router = APIRouter()
 
 
-@router.get("/", response_model=List[schemas.Bookmark])
+@router.get("/", response_model=PaginatedResponse[schemas.Bookmark])
 def read_bookmarks(
     *,
     db: Session = Depends(deps.get_db),
-    skip: int = 0,
-    limit: int = 100,
+    pagination: PaginationParams = Depends(),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
-    Retrieve bookmarks for the current user.
+    Retrieve bookmarks for the current user with pagination.
     """
-    # Use the CRUD method instead of direct query
     bookmarks = crud.bookmark.get_multi_by_user(
-        db, user_id=current_user.id, skip=skip, limit=limit
+        db, user_id=current_user.id, skip=pagination.skip, limit=pagination.limit
     )
-    return bookmarks
+    total = crud.bookmark.count_by_user(db, user_id=current_user.id)
+    
+    return {
+        "data": bookmarks,
+        "total": total,
+        "skip": pagination.skip,
+        "limit": pagination.limit
+    }
 
 
 @router.post("/", response_model=schemas.Bookmark)

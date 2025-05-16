@@ -5,22 +5,29 @@ from sqlalchemy.orm import Session
 
 from app import crud, models, schemas
 from app.api import deps
+from app.schemas.common import PaginationParams, PaginatedResponse
+from app.core.limiter import search_rate_limit
 
 router = APIRouter()
 
 
-@router.get("/", response_model=List[schemas.Manga])
+@router.get("/", response_model=PaginatedResponse[schemas.Manga])
 def read_manga(
     db: Session = Depends(deps.get_db),
-    skip: int = 0,
-    limit: int = 100,
+    pagination: PaginationParams = Depends(),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
-    Retrieve manga.
+    Retrieve manga with pagination.
     """
-    manga = crud.manga.get_multi(db, skip=skip, limit=limit)
-    return manga
+    manga = crud.manga.get_multi(db, skip=pagination.skip, limit=pagination.limit)
+    total = crud.manga.count(db)
+    return {
+        "data": manga,
+        "total": total,
+        "skip": pagination.skip,
+        "limit": pagination.limit
+    }
 
 
 @router.post("/", response_model=schemas.Manga)
@@ -37,33 +44,18 @@ def create_manga(
     return manga
 
 
-@router.get("/search", response_model=List[schemas.MangaSearchResult])
-def search_manga(
+@router.get("/search", response_model=List[schemas.Manga])
+async def search_manga(
     *,
     db: Session = Depends(deps.get_db),
-    query: str = Query(..., min_length=1),
-    include_nsfw: bool = Query(False),
-    include_explicit: bool = Query(False),
-    skip: int = 0,
-    limit: int = 100,
+    query: str,
     current_user: models.User = Depends(deps.get_current_active_user),
+    rate_limiter: None = Depends(search_rate_limit()),
 ) -> Any:
     """
-    Search for manga.
+    Search for manga by title.
     """
-    results = crud.manga.search(
-        db, 
-        query=query, 
-        include_nsfw=include_nsfw, 
-        include_explicit=include_explicit,
-        skip=skip, 
-        limit=limit
-    )
-    
-    return [
-        {"manga": manga, "accuracy": accuracy}
-        for manga, accuracy in results
-    ]
+    return crud.manga.search(db, query=query)
 
 
 @router.get("/collection", response_model=List[schemas.Manga])

@@ -14,16 +14,19 @@ from app.utils import (
     generate_password_reset_token,
     verify_password_reset_token,
 )
+from app.core.limiter import auth_rate_limit
 
 router = APIRouter()
 
 
 @router.post("/login/access-token", response_model=schemas.Token)
-def login_access_token(
-    db: Session = Depends(deps.get_db), form_data: OAuth2PasswordRequestForm = Depends()
+async def login_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(deps.get_db),
+    rate_limiter: None = Depends(auth_rate_limit()),
 ) -> Any:
     """
-    OAuth2 compatible token login, get an access token for future requests
+    OAuth2 compatible token login, get an access token for future requests.
     """
     user = crud.user.authenticate(
         db, email=form_data.username, password=form_data.password

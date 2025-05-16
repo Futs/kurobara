@@ -282,6 +282,14 @@ class CRUDChapter(CRUDBase[Chapter, ChapterCreate, ChapterUpdate]):
             db.rollback()
             return []
     
+    def count_by_manga(self, db: Session, *, manga_id: UUID) -> int:
+        """Count chapters for a specific manga"""
+        try:
+            return db.query(Chapter).filter(Chapter.manga_id == manga_id).count()
+        except SQLAlchemyError:
+            db.rollback()
+            return 0
+    
     def get_latest_downloaded(
         self, db: Session, *, user_id: UUID, limit: int = 10, include_explicit: bool = False
     ) -> List[Dict[str, Any]]:

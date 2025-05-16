@@ -5,30 +5,37 @@ from sqlalchemy.orm import Session
 
 from app import crud, models, schemas
 from app.api import deps
+from app.schemas.common import PaginationParams, PaginatedResponse
 
 router = APIRouter()
 
 
-@router.get("/manga/{manga_id}", response_model=List[schemas.Chapter])
+@router.get("/manga/{manga_id}", response_model=PaginatedResponse[schemas.Chapter])
 def read_chapters(
     *,
     db: Session = Depends(deps.get_db),
     manga_id: str,
-    skip: int = 0,
-    limit: int = 100,
+    pagination: PaginationParams = Depends(),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
-    Retrieve chapters for a manga.
+    Retrieve chapters for a manga with pagination.
     """
     manga = crud.manga.get(db, id=manga_id)
     if not manga:
         raise HTTPException(status_code=404, detail="Manga not found")
     
     chapters = crud.chapter.get_chapters_by_manga(
-        db, manga_id=manga_id, skip=skip, limit=limit
+        db, manga_id=manga_id, skip=pagination.skip, limit=pagination.limit
     )
-    return chapters
+    total = crud.chapter.count_by_manga(db, manga_id=manga_id)
+    
+    return {
+        "data": chapters,
+        "total": total,
+        "skip": pagination.skip,
+        "limit": pagination.limit
+    }
 
 
 @router.post("/", response_model=schemas.Chapter)
