@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     POSTGRES_DB: str = os.getenv("POSTGRES_DB", "kurobara")
     POSTGRES_PORT: str = os.getenv("POSTGRES_PORT", "5432")
     DATABASE_URL: Optional[PostgresDsn] = None
+    DATABASE_CONNECT_ARGS: Dict[str, Any] = {}
 
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
@@ -51,13 +52,14 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return v
         
+        # Access data using values.data instead of values.get
         return PostgresDsn.build(
             scheme="postgresql",
             username=values.data.get("POSTGRES_USER"),
             password=values.data.get("POSTGRES_PASSWORD"),
             host=values.data.get("POSTGRES_SERVER"),
-            port=values.data.get("POSTGRES_PORT"),
-            path=f"{values.data.get('POSTGRES_DB') or ''}",
+            port=int(values.data.get("POSTGRES_PORT")),  # Convert string to integer
+            path=f"/{values.data.get('POSTGRES_DB') or ''}",
         )
 
     # Email Settings
