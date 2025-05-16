@@ -17,6 +17,8 @@ import { useRouter } from "next/navigation"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import type { MangaFormData } from "@/types/manga"
 import { ProtectedRoute } from "@/components/protected-route"
+// import Form from 'next/form'
+import { createMangaAction as importedCreateMangaAction } from './actions'
 
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -269,4 +271,24 @@ export default function AddMangaPage() {
       </div>
     </ProtectedRoute>
   )
+}
+
+// Create a server action for manga creation
+export async function createMangaAction(formData: FormData) {
+  // Extract values from formData
+  const values = {
+    title: formData.get('title') as string,
+    author: formData.get('author') as string,
+    // Add other fields...
+  }
+  
+  // Call your existing service
+  // Replace with actual implementation
+  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/manga`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(values),
+  });
+  
+  return response.json();
 }

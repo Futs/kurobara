@@ -57,3 +57,16 @@ export const MangaService = {
     return get<Manga[]>("/manga/search", { query })
   }),
 }
+
+export async function getManga(id: string) {
+  // Add caching options
+  const response = await fetch(`${API_URL}/manga/${id}`, {
+    next: { revalidate: 3600 }, // Cache for 1 hour
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch manga');
+  }
+  
+  return response.json();
+}
